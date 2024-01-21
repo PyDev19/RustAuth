@@ -6,3 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argon2 = "0.5.3"
+rocket = {version = "0.5.0", features = ["json"]}
+serde = {version = "1.0.195", features = ["derive"]}
+surrealdb = "1.1.1"
+tokio = {version = "1.35.1", features = ["full"]}
+
