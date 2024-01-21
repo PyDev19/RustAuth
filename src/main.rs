@@ -10,6 +10,7 @@ use routes::*;
 mod database;
 use database::*;
 mod hash;
+use hash::*;
 
 fn read_api_key(file: File) -> Option<String> {
     let reader = io::BufReader::new(file);
@@ -41,8 +42,9 @@ async fn rocket() -> _ {
                 let _flush = io::stdout().flush();
                 let mut input = String::new();
                 io::stdin().read_line(&mut input).expect("Failed to read input");
-                api_key = input.trim().to_string();
-                if let Err(err) = write_api_key("key.txt", input.trim()) {
+                let salt = generate_salt();
+                let api_key = hash_password(input.trim().to_string(), salt.clone()).ok();
+                if let Err(err) = write_api_key("key.txt", api_key.unwrap().as_str()) {
                     eprintln!("Error writing to api.txt: {}", err);
                 }
             }
@@ -51,8 +53,9 @@ async fn rocket() -> _ {
             let _flush = io::stdout().flush();
             let mut input = String::new();
             io::stdin().read_line(&mut input).expect("Failed to read input");
-            api_key = input.trim().to_string();
-            if let Err(err) = write_api_key("key.txt", input.trim()) {
+            let salt = generate_salt();
+            let api_key = hash_password(input.trim().to_string(), salt.clone()).ok();
+            if let Err(err) = write_api_key("key.txt", api_key.unwrap().as_str()) {
                 eprintln!("Error writing to api.txt: {}", err);
             }
         }

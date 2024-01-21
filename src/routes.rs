@@ -1,8 +1,10 @@
 use rocket::serde::json::Json;
 use surrealdb::Error;
+use surrealdb::error::Db;
 use rocket::State;
 use crate::models::*;
 use crate::database::Database;
+use crate::hash::*;
 
 #[post("/signup", data = "<user>")]
 pub async fn signup(user: Json<SignUp>, db: &State<Database>) -> Result<Result<Result<Json<User>, Json<String>>, String>, Json<Error>> {
@@ -24,17 +26,22 @@ pub async fn signup(user: Json<SignUp>, db: &State<Database>) -> Result<Result<R
     }
 }
 
-#[get("/get_user/<username>")]
-pub async fn get_user(username: String, db: &State<Database>) -> Result<Result<Json<User>, String>, Json<Error>> {
-    let user_result = db.get_user(username).await;
+#[get("/get_user/<username>?<key>")]
+pub async fn get_user(username: String, key: String, db: &State<Database>, api_key: &State<String>) -> Result<Result<Json<User>, String>, Json<Error>> {
+    let verify_key = verify_password(key, api_key.to_string()).ok().unwrap();
+    if verify_key {
+        let user_result = db.get_user(username).await;
 
-    match user_result {
-        Ok(Some(user)) => Ok(Ok(Json(user))),
-        Ok(None) => {
-            let result_string = "User not found".to_string();
-            Ok(Err(result_string))
+        match user_result {
+            Ok(Some(user)) => Ok(Ok(Json(user))),
+            Ok(None) => {
+                let result_string = "User not found".to_string();
+                Ok(Err(result_string))
+            }
+            Err(err) => Err(Json(err)),
         }
-        Err(err) => Err(Json(err)),
+    } else {
+        Err(Json(Error::Db(Db::Thrown("Api key is invalid".to_string()))))
     }
 }
 
