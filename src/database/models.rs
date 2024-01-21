@@ -12,13 +12,15 @@ pub struct User {
 pub struct SignUp {
     pub email: String,
     pub username: String,
-    pub password: String
+    pub password: String,
+    pub api_key: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmailLoginIn {
     pub email: String,
-    pub password: String
+    pub password: String,
+    pub api_key: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
