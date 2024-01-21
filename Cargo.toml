@@ -12,3 +12,9 @@ serde = {version = "1.0.195", features = ["derive"]}
 surrealdb = "1.1.1"
 tokio = {version = "1.35.1", features = ["full"]}
 
+[profile.release]
+opt-level = 'z'     # Optimize for size
+lto = true          # Enable link-time optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations
+panic = 'abort'     # Abort on panic
+strip = true        # Strip symbols from binary*
