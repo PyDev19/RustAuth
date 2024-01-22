@@ -3,8 +3,7 @@ use crate::hash::*;
 use crate::models::*;
 use rocket::serde::json::Json;
 use rocket::State;
-use surrealdb::error::Db;
-use surrealdb::Error;
+use surrealdb::{error::Db::Thrown, Error, Error::Db};
 
 #[post("/signup", data = "<user>")]
 pub async fn signup(
@@ -20,18 +19,13 @@ pub async fn signup(
 
         match created_user {
             Ok(result) => match result {
-                Ok(user) => match user {
-                    Some(user) => Ok(Json(user)),
-                    None => Err(Json(Error::Db(Db::Thrown("An error occured".to_string())))),
-                },
-                Err(err) => Err(Json(Error::Db(Db::Thrown(err)))),
+                Some(user) => Ok(Json(user)),
+                None => Err(Json(Db(Thrown("An error occured".to_string())))),
             },
             Err(err) => Err(Json(err)),
         }
     } else {
-        Err(Json(Error::Db(Db::Thrown(
-            "Api key is invalid".to_string(),
-        ))))
+        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
     }
 }
 
@@ -50,14 +44,12 @@ pub async fn get_user(
             Ok(Some(user)) => Ok(Json(user)),
             Ok(None) => {
                 let result_string = "User not found".to_string();
-                Err(Json(Error::Db(Db::Thrown(result_string))))
+                Err(Json(Db(Thrown(result_string))))
             }
             Err(err) => Err(Json(err)),
         }
     } else {
-        Err(Json(Error::Db(Db::Thrown(
-            "Api key is invalid".to_string(),
-        ))))
+        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
     }
 }
 
@@ -73,14 +65,11 @@ pub async fn delete_user(
         let delete_result = db.delete_user(username.clone()).await;
 
         match delete_result {
-            Ok(Ok(_deleted_user)) => Ok("User deleted".to_string()),
-            Ok(Err(error_string)) => Ok(error_string),
+            Ok(_) => Ok("User deleted".to_string()),
             Err(err) => Err(Json(err)),
         }
     } else {
-        Err(Json(Error::Db(Db::Thrown(
-            "Api key is invalid".to_string(),
-        ))))
+        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
     }
 }
 
@@ -96,16 +85,11 @@ pub async fn email_login(
     if verify_key {
         let login_result = db.email_login(credentials.into_inner()).await;
         match login_result {
-            Ok(no_err) => match no_err {
-                Ok(login_success) => Ok(Json(login_success)),
-                Err(err) => Err(Json(Error::Db(Db::Thrown(err)))),
-            },
+            Ok(login_success) => Ok(Json(login_success)),
             Err(err) => Err(Json(err)),
         }
     } else {
-        Err(Json(Error::Db(Db::Thrown(
-            "Api key is invalid".to_string(),
-        ))))
+        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
     }
 }
 
