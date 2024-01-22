@@ -1,6 +1,6 @@
 use crate::hash::*;
 use crate::models::*;
-use std::borrow::Borrow;
+
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::error::Db::Thrown;
 use surrealdb::opt::auth::Root;
