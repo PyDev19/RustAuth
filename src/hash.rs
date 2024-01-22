@@ -1,8 +1,8 @@
-use argon2::{Argon2, PasswordHasher, PasswordVerifier, PasswordHash};
-use argon2::password_hash::{SaltString, rand_core::OsRng, Error};
+use argon2::password_hash::{rand_core::OsRng, Error, SaltString};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 
 pub fn generate_salt() -> SaltString {
-   SaltString::generate(&mut OsRng)
+    SaltString::generate(&mut OsRng)
 }
 
 pub fn hash_password(password: String, salt: SaltString) -> Result<String, Error> {
@@ -14,5 +14,7 @@ pub fn hash_password(password: String, salt: SaltString) -> Result<String, Error
 pub fn verify_password(password: String, password_hash: String) -> Result<bool, Error> {
     let hash = PasswordHash::new(&password_hash)?;
     dbg!(hash.clone());
-    Ok(Argon2::default().verify_password(password.as_bytes(), &hash).is_ok())
-} 
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &hash)
+        .is_ok())
+}
