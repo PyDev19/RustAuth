@@ -13,7 +13,6 @@ pub fn hash_password(password: String, salt: SaltString) -> Result<String, Error
 
 pub fn verify_password(password: String, password_hash: String) -> Result<bool, Error> {
     let hash = PasswordHash::new(&password_hash)?;
-    dbg!(hash.clone());
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &hash)
         .is_ok())

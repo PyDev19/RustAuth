@@ -110,7 +110,6 @@ impl Database {
                             verify_password(credentials.password.clone(), user.password.clone())
                                 .ok()
                                 .unwrap();
-                        dbg!(verify_password);
                         if verify_password {
                             let logged_in_query = format!(
                                 "UPDATE Users SET logged_in = true WHERE email='{}'",
@@ -148,7 +147,6 @@ impl Database {
                 let query = format!("DELETE Users WHERE username = '{}'", username);
                 let mut result = self.client.query(query).await?;
                 let deleted_user: Option<User> = result.take(0)?;
-                dbg!(deleted_user.borrow());
                 Ok(deleted_user)
             }
             Ok(None) => Err(Db(Thrown("User not found".to_string()))),
