@@ -1,26 +1,36 @@
 use crate::hash::*;
 use crate::models::*;
 
-use surrealdb::engine::remote::ws::{Client, Ws};
+use surrealdb::engine::local::{Db, RocksDb};
 use surrealdb::error::Db::Thrown;
-use surrealdb::opt::auth::Root;
-use surrealdb::{Error, Error::Db, Surreal};
+use surrealdb::opt::{auth::Root, Config};
+use surrealdb::{Error, Surreal};
 
 pub struct Database {
-    pub client: Surreal<Client>,
+    pub client: Surreal<Db>,
     pub name_space: String,
     pub db_name: String,
 }
 
 impl Database {
     pub async fn new() -> Result<Self, Error> {
-        let client = Surreal::new::<Ws>("127.0.0.1:8080").await?;
+        let config = Config::default().strict().user(Root {
+            username: "root",
+            password: "root",
+        });
+        let client = Surreal::new::<RocksDb>(("database.db", config)).await?;
         client
             .signin(Root {
                 username: "root",
                 password: "root",
             })
             .await?;
+
+        client.query("DEFINE NAMESPACE my_ns").await?;
+        client.query("DEFINE DATABASE my_db").await?;
+        client.query("USE NS my_ns DB my_db").await?;
+        client.query("DEFINE TABLE Users").await?;
+
         client.use_ns("my_ns").use_db("my_db").await.unwrap();
         Ok(Database {
             client,
@@ -59,7 +69,7 @@ impl Database {
         match is_duplicate_email {
             Ok(duplicate) => {
                 if duplicate {
-                    return Err(Db(Thrown("Email already in use".to_string())));
+                    return Err(Error::Db(Thrown("Email already in use".to_string())));
                 }
             }
             Err(err) => return Err(err),
@@ -69,7 +79,7 @@ impl Database {
         match is_duplicate_username {
             Ok(duplicate) => {
                 if duplicate {
-                    return Err(Db(Thrown("Username already taken".to_string())));
+                    return Err(Error::Db(Thrown("Username already taken".to_string())));
                 }
             }
             Err(err) => return Err(err),
@@ -123,10 +133,14 @@ impl Database {
                                 Err(err) => Err(err),
                             }
                         } else {
-                            Err(Db(Thrown("Password is incorrent try again".to_string())))
+                            Err(Error::Db(Thrown(
+                                "Password is incorrent try again".to_string(),
+                            )))
                         }
                     }
-                    None => Err(Db(Thrown("Email is incorrent try again".to_string()))),
+                    None => Err(Error::Db(Thrown(
+                        "Email is incorrent try again".to_string(),
+                    ))),
                 }
             }
             Err(err) => Err(err),
@@ -149,7 +163,7 @@ impl Database {
                 let deleted_user: Option<User> = result.take(0)?;
                 Ok(deleted_user)
             }
-            Ok(None) => Err(Db(Thrown("User not found".to_string()))),
+            Ok(None) => Err(Error::Db(Thrown("User not found".to_string()))),
             Err(err) => Err(err),
         }
     }
