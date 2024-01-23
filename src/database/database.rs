@@ -28,10 +28,9 @@ impl Database {
 
         client.query("DEFINE NAMESPACE my_ns").await?;
         client.query("DEFINE DATABASE my_db").await?;
-        client.query("USE NS my_ns DB my_db").await?;
-        client.query("DEFINE TABLE Users").await?;
 
-        client.use_ns("my_ns").use_db("my_db").await.unwrap();
+        client.use_ns("my_ns").use_db("my_db").await?;
+        client.query("DEFINE TABLE Users").await?;
         Ok(Database {
             client,
             name_space: String::from("my_ns"),
@@ -121,16 +120,20 @@ impl Database {
                                 .ok()
                                 .unwrap();
                         if verify_password {
-                            let logged_in_query = format!(
-                                "UPDATE Users SET logged_in = true WHERE email='{}'",
-                                user.email.clone()
-                            );
-                            match self.client.query(logged_in_query).await {
-                                Ok(_) => Ok(EmailLoginInSuccess {
-                                    email: user.email.clone(),
-                                    username: user.username.clone(),
-                                }),
-                                Err(err) => Err(err),
+                            if !user.logged_in.clone() {
+                                let logged_in_query = format!(
+                                    "UPDATE Users SET logged_in = true WHERE email='{}'",
+                                    user.email.clone()
+                                );
+                                match self.client.query(logged_in_query).await {
+                                    Ok(_) => Ok(EmailLoginInSuccess {
+                                        email: user.email.clone(),
+                                        username: user.username.clone(),
+                                    }),
+                                    Err(err) => Err(err),
+                                }
+                            } else {
+                                Err(Error::Db(Thrown("User already logged in".to_string())))
                             }
                         } else {
                             Err(Error::Db(Thrown(
