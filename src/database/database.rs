@@ -170,4 +170,22 @@ impl Database {
             Err(err) => Err(err),
         }
     }
+
+    pub async fn signout(&self, username: String) -> Result<String, Error> {
+        let get_user_result = self.get_user(username.clone()).await;
+        match get_user_result {
+            Ok(Some(user)) => {
+                if user.logged_in.clone() {
+                    let query = format!("UPDATE Users SET logged_in=false WHERE username = '{}'", username);
+                    let mut result = self.client.query(query).await?;
+                    let _deleted_user: Option<User> = result.take(0)?;
+                    Ok("User successfully logged out".to_string())
+                } else {
+                    Err(Error::Db(Thrown("User is not logged in".to_string())))
+                }
+            }
+            Ok(None) => Err(Error::Db(Thrown("User not found".to_string()))),
+            Err(err) => Err(err)
+        }
+    }
 }
