@@ -87,7 +87,7 @@ async fn rocket() -> _ {
     rocket::build()
         .mount(
             "/",
-            routes![root, signup, get_user, delete_user, email_login],
+            routes![root, signup, get_user, delete_user, email_login, signout],
         )
         .manage(db)
         .manage(api_key)
