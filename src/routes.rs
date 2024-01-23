@@ -103,6 +103,23 @@ pub async fn email_login(
     .await
 }
 
+#[get("/signout/<username>?<key>")]
+pub async fn signout(
+    username: String,
+    key: String,
+    db: &State<Database>,
+    api_key: &State<String>,
+) -> Result<String, Json<Error>> {
+    verify_api_key(key, api_key, || async {
+        let signout_result = db.signout(username).await;
+        match signout_result {
+            Ok(success) => Ok(success),
+            Err(err) => Err(err),
+        }
+    })
+    .await
+}
+
 #[get("/")]
 pub fn root() -> &'static str {
     "Welcome to the Rust Auth Server created by PyDev19"
