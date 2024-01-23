@@ -3,7 +3,30 @@ use crate::hash::*;
 use crate::models::*;
 use rocket::serde::json::Json;
 use rocket::State;
+use std::future::Future;
 use surrealdb::{error::Db::Thrown, Error, Error::Db};
+
+async fn verify_api_key<T, F, U>(
+    key: String,
+    api_key: &State<String>,
+    action: T,
+) -> Result<U, Json<Error>>
+where
+    T: FnOnce() -> F,
+    F: Future<Output = Result<U, Error>>,
+{
+    let verify_key_result = verify_password(key, api_key.to_string());
+    match verify_key_result {
+        Ok(verify_key) => {
+            if verify_key {
+                action().await.map_err(Json).and_then(|x| Ok(x))
+            } else {
+                Err(Json(Db(Thrown("Api key is invalid".to_string()))))
+            }
+        }
+        Err(_) => Err(Json(Db(Thrown("Api key is required".to_string())))),
+    }
+}
 
 #[post("/signup", data = "<user>")]
 pub async fn signup(
@@ -11,22 +34,18 @@ pub async fn signup(
     db: &State<Database>,
     api_key: &State<String>,
 ) -> Result<Json<User>, Json<Error>> {
-    let verify_key = verify_password(user.api_key.clone(), api_key.to_string())
-        .ok()
-        .unwrap();
-    if verify_key {
+    verify_api_key(user.api_key.clone(), api_key, || async {
         let created_user = db.signup(user.into_inner()).await;
 
         match created_user {
             Ok(result) => match result {
                 Some(user) => Ok(Json(user)),
-                None => Err(Json(Db(Thrown("An error occured".to_string())))),
+                None => Err(Db(Thrown("An error occured".to_string()))),
             },
-            Err(err) => Err(Json(err)),
+            Err(err) => Err(err),
         }
-    } else {
-        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
-    }
+    })
+    .await
 }
 
 #[get("/get_user/<username>?<key>")]
@@ -36,21 +55,18 @@ pub async fn get_user(
     db: &State<Database>,
     api_key: &State<String>,
 ) -> Result<Json<User>, Json<Error>> {
-    let verify_key = verify_password(key, api_key.to_string()).ok().unwrap();
-    if verify_key {
+    verify_api_key(key, api_key, || async {
         let user_result = db.get_user(username).await;
-
         match user_result {
             Ok(Some(user)) => Ok(Json(user)),
             Ok(None) => {
                 let result_string = "User not found".to_string();
-                Err(Json(Db(Thrown(result_string))))
+                Err(Db(Thrown(result_string)))
             }
-            Err(err) => Err(Json(err)),
+            Err(err) => Err(err),
         }
-    } else {
-        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
-    }
+    })
+    .await
 }
 
 #[get("/delete_user/<username>?<key>")]
@@ -60,17 +76,15 @@ pub async fn delete_user(
     db: &State<Database>,
     api_key: &State<String>,
 ) -> Result<String, Json<Error>> {
-    let verify_key = verify_password(key, api_key.to_string()).ok().unwrap();
-    if verify_key {
+    verify_api_key(key, api_key, || async {
         let delete_result = db.delete_user(username.clone()).await;
 
         match delete_result {
             Ok(_) => Ok("User deleted".to_string()),
-            Err(err) => Err(Json(err)),
+            Err(err) => Err(err),
         }
-    } else {
-        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
-    }
+    })
+    .await
 }
 
 #[post("/email_login", data = "<credentials>")]
@@ -79,18 +93,14 @@ pub async fn email_login(
     db: &State<Database>,
     api_key: &State<String>,
 ) -> Result<Json<EmailLoginInSuccess>, Json<Error>> {
-    let verify_key = verify_password(credentials.api_key.clone(), api_key.to_string())
-        .ok()
-        .unwrap();
-    if verify_key {
+    verify_api_key(credentials.api_key.clone(), api_key, || async {
         let login_result = db.email_login(credentials.into_inner()).await;
         match login_result {
             Ok(login_success) => Ok(Json(login_success)),
-            Err(err) => Err(Json(err)),
+            Err(err) => Err(err),
         }
-    } else {
-        Err(Json(Db(Thrown("Api key is invalid".to_string()))))
-    }
+    })
+    .await
 }
 
 #[get("/")]
