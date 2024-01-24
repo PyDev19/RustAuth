@@ -17,14 +17,21 @@ pub struct SignUp {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EmailLoginIn {
+pub struct EmailLogin {
     pub email: String,
     pub password: String,
     pub api_key: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EmailLoginInSuccess {
+pub struct LoginSuccess {
     pub email: String,
     pub username: String    
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsernameLogin {
+    pub username: String,
+    pub password: String,
+    pub api_key: String
 }
