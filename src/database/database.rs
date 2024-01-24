@@ -45,7 +45,7 @@ impl Database {
         match result {
             Ok(mut result_set) => {
                 let created: Option<User> = result_set.take(0)?;
-                Ok(!created.is_none())
+                Ok(created.is_some())
             }
             Err(err) => Err(err),
         }
@@ -57,7 +57,7 @@ impl Database {
         match result {
             Ok(mut result_set) => {
                 let created: Option<User> = result_set.take(0)?;
-                Ok(!created.is_none())
+                Ok(created.is_some())
             }
             Err(err) => Err(err),
         }
@@ -101,10 +101,7 @@ impl Database {
         }
     }
 
-    pub async fn email_login(
-        &self,
-        credentials: EmailLoginIn,
-    ) -> Result<EmailLoginInSuccess, Error> {
+    pub async fn email_login(&self, credentials: EmailLogin) -> Result<LoginSuccess, Error> {
         let query = format!(
             "SELECT * FROM Users WHERE email='{}'",
             credentials.email.clone()
@@ -120,13 +117,13 @@ impl Database {
                                 .ok()
                                 .unwrap();
                         if verify_password {
-                            if !user.logged_in.clone() {
+                            if !user.logged_in {
                                 let logged_in_query = format!(
                                     "UPDATE Users SET logged_in = true WHERE email='{}'",
                                     user.email.clone()
                                 );
                                 match self.client.query(logged_in_query).await {
-                                    Ok(_) => Ok(EmailLoginInSuccess {
+                                    Ok(_) => Ok(LoginSuccess {
                                         email: user.email.clone(),
                                         username: user.username.clone(),
                                     }),
@@ -137,12 +134,58 @@ impl Database {
                             }
                         } else {
                             Err(Error::Db(Thrown(
-                                "Password is incorrent try again".to_string(),
+                                "Email or Password is incorret try again".to_string(),
                             )))
                         }
                     }
                     None => Err(Error::Db(Thrown(
-                        "Email is incorrent try again".to_string(),
+                        "Email or Password is incorret try again".to_string(),
+                    ))),
+                }
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn username_login(&self, credentials: UsernameLogin) -> Result<LoginSuccess, Error> {
+        let query = format!(
+            "SELECT * FROM Users WHERE username='{}'",
+            credentials.username.clone()
+        );
+        let result = self.client.query(query).await;
+        match result {
+            Ok(mut result_) => {
+                let user: Option<User> = result_.take(0)?;
+                match user {
+                    Some(user_) => {
+                        let verify_password =
+                            verify_password(credentials.password.clone(), user_.password.clone())
+                                .ok()
+                                .unwrap();
+                        if verify_password {
+                            if !user_.logged_in {
+                                let logged_in_query = format!(
+                                    "UPDATE Users SET logged_in = true WHERE email='{}'",
+                                    user_.email.clone()
+                                );
+                                match self.client.query(logged_in_query).await {
+                                    Ok(_) => Ok(LoginSuccess {
+                                        email: user_.email.clone(),
+                                        username: user_.username.clone(),
+                                    }),
+                                    Err(err) => Err(err),
+                                }
+                            } else {
+                                Err(Error::Db(Thrown("User already logged in".to_string())))
+                            }
+                        } else {
+                            Err(Error::Db(Thrown(
+                                "Username or Password is incorret try again".to_string(),
+                            )))
+                        }
+                    }
+                    None => Err(Error::Db(Thrown(
+                        "Username or Password is incorret try again".to_string(),
                     ))),
                 }
             }
@@ -175,8 +218,11 @@ impl Database {
         let get_user_result = self.get_user(username.clone()).await;
         match get_user_result {
             Ok(Some(user)) => {
-                if user.logged_in.clone() {
-                    let query = format!("UPDATE Users SET logged_in=false WHERE username = '{}'", username);
+                if user.logged_in {
+                    let query = format!(
+                        "UPDATE Users SET logged_in=false WHERE username = '{}'",
+                        username
+                    );
                     let mut result = self.client.query(query).await?;
                     let _deleted_user: Option<User> = result.take(0)?;
                     Ok("User successfully logged out".to_string())
@@ -185,7 +231,7 @@ impl Database {
                 }
             }
             Ok(None) => Err(Error::Db(Thrown("User not found".to_string()))),
-            Err(err) => Err(err)
+            Err(err) => Err(err),
         }
     }
 }
