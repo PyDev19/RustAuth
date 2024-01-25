@@ -1,6 +1,4 @@
-use crate::database::Database;
-use crate::hash::*;
-use crate::models::*;
+use crate::{database::Database, hash::verify_password, models::*};
 use rocket::serde::json::Json;
 use rocket::State;
 use std::future::Future;
@@ -19,7 +17,7 @@ where
     match verify_key_result {
         Ok(verify_key) => {
             if verify_key {
-                action().await.map_err(Json).and_then(|x| Ok(x))
+                action().await.map_err(Json)
             } else {
                 Err(Json(Db(Thrown("Api key is invalid".to_string()))))
             }
@@ -89,10 +87,10 @@ pub async fn delete_user(
 
 #[post("/email_login", data = "<credentials>")]
 pub async fn email_login(
-    credentials: Json<EmailLoginIn>,
+    credentials: Json<EmailLogin>,
     db: &State<Database>,
     api_key: &State<String>,
-) -> Result<Json<EmailLoginInSuccess>, Json<Error>> {
+) -> Result<Json<LoginSuccess>, Json<Error>> {
     verify_api_key(credentials.api_key.clone(), api_key, || async {
         let login_result = db.email_login(credentials.into_inner()).await;
         match login_result {
@@ -118,6 +116,17 @@ pub async fn signout(
         }
     })
     .await
+}
+
+#[post("/username_login", data = "<credentials>")]
+pub async fn username_login(credentials: Json<UsernameLogin>, db: &State<Database>, api_key: &State<String>) -> Result<Json<LoginSuccess>, Json<Error>> {
+    verify_api_key(credentials.api_key.clone(), api_key, || async {
+        let login_result = db.username_login(credentials.into_inner()).await;
+        match login_result {
+            Ok(login_success) => Ok(Json(login_success)),
+            Err(err) => Err(err),
+        }
+    }).await
 }
 
 #[get("/")]
