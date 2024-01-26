@@ -13,24 +13,20 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn new() -> Result<Self, Error> {
+    pub async fn new(db_name: String, root_user: String, root_pass: String) -> Result<Self, Error> {
         let config = Config::default().strict().user(Root {
-            username: "root",
-            password: "root",
+            username: root_user.as_str(),
+            password: root_pass.as_str(),
         });
-        let client = Surreal::new::<RocksDb>(("database.db", config)).await?;
+        let client = Surreal::new::<RocksDb>((db_name, config)).await?;
         client
             .signin(Root {
-                username: "root",
-                password: "root",
+                username: root_user.as_str(),
+                password: root_pass.as_str(),
             })
             .await?;
 
-        client.query("DEFINE NAMESPACE my_ns").await?;
-        client.query("DEFINE DATABASE my_db").await?;
-
         client.use_ns("my_ns").use_db("my_db").await?;
-        client.query("DEFINE TABLE Users").await?;
         Ok(Database {
             client,
             name_space: String::from("my_ns"),
