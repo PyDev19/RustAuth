@@ -10,84 +10,36 @@ use routes::*;
 mod database;
 use database::*;
 mod hash;
-use hash::*;
-
-fn read_api_key(file: File) -> Option<String> {
-    let reader = io::BufReader::new(file);
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            return Some(line);
-        }
-    }
-    None
-}
-
-fn write_api_key(file_name: &str, content: &str) -> io::Result<()> {
-    let file_path = format!(
-        "{}/{}",
-        std::env::current_exe()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .to_str()
-            .unwrap(),
-        file_name
-    );
-    let mut file = File::create(&file_path)?;
-    file.write_all(content.as_bytes())?;
-    Ok(())
-}
+mod settings;
+use settings::check_settings;
 
 #[launch]
 async fn rocket() -> _ {
     let mut api_key = String::from("");
+    let mut root_pass = String::from("");
+    let mut root_user = String::from("");
+    let mut db_name = String::from("");
 
     block_in_place(|| {
-        if let Ok(file) = File::open(format!(
-            "{}/{}",
-            std::env::current_exe()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "key.txt"
-        )) {
-            if let Some(first_line) = read_api_key(file) {
-                api_key = first_line;
-            } else {
-                print!("key.txt is empty. Please enter the key: ");
-                let _flush = io::stdout().flush();
-                let mut input = String::new();
-                io::stdin()
-                    .read_line(&mut input)
-                    .expect("Failed to read input");
-                let salt = generate_salt();
-                let api_key = hash_password(input.trim().to_string(), salt.clone()).ok();
-                if let Err(err) = write_api_key("key.txt", api_key.unwrap().as_str()) {
-                    eprintln!("Error writing to api.txt: {}", err);
-                }
-            }
-        } else {
-            print!("key.txt not found. Please enter the key: ");
-            let _flush = io::stdout().flush();
-            let mut input = String::new();
-            io::stdin()
-                .read_line(&mut input)
-                .expect("Failed to read input");
-            let salt = generate_salt();
-            let api_key = hash_password(input.trim().to_string(), salt.clone()).ok();
-            if let Err(err) = write_api_key("key.txt", api_key.unwrap().as_str()) {
-                eprintln!("Error writing to api.txt: {}", err);
-            }
-        }
+        let settings_ = check_settings();
+        (root_user, root_pass, db_name, api_key) = settings_;
     });
 
-    let db = Database::new().await.expect("error connecting to database");
+    let db = Database::new(db_name, root_user, root_pass)
+        .await
+        .expect("Error connecting to database");
     rocket::build()
         .mount(
             "/",
-            routes![root, signup, get_user, delete_user, email_login, signout],
+            routes![
+                root,
+                signup,
+                get_user,
+                delete_user,
+                email_login,
+                username_login,
+                signout
+            ],
         )
         .manage(db)
         .manage(api_key)
