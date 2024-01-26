@@ -14,10 +14,12 @@ struct Settings {
 
 pub fn check_settings() -> (String, String, String, String) {
     let mut api_key: String = String::from("");
+    let mut settings_exists: bool = false;
     let settings: Settings = match fs::read_to_string("settings.json") {
         Ok(contents) => {
+            settings_exists = true;
             let json: Settings = serde_json::from_str(&contents).unwrap();
-            api_key = json.api_key.clone().unwrap();
+            api_key = json.api_key.clone().unwrap_or_default();
             json
         }
         Err(_) => Settings {
@@ -30,39 +32,49 @@ pub fn check_settings() -> (String, String, String, String) {
 
     let mut updated_settings = settings.clone();
 
-    if settings.root_user.is_none() {
-        println!("Root username not found in settings.json");
-        updated_settings.root_user = prompt_user("What root username do you want: ");
-        print!("\x1B[2J\x1B[1;1H");
+    let required_fields = ["root username", "root password", "database name", "api key"];
+
+    if required_fields.iter().any(|field| match *field {
+        "root username" => updated_settings.root_user.is_none(),
+        "root password" => updated_settings.root_password.is_none(),
+        "database name" => updated_settings.db_name.is_none(),
+        "api key" => updated_settings.api_key.is_none(),
+        _ => false,
+    }) {
+        if settings_exists {
+            println!("Some fields are missing in settings.json. Let's fill them in.");
+        } else {
+            println!("Settings do not exists, please answer the following prompts to start.")
+        }
+        for field in required_fields {
+            match field {
+                "root username" if updated_settings.root_user.is_none() => {
+                    updated_settings.root_user = prompt_user("Set a root username: ");
+                }
+                "root password" if updated_settings.root_password.is_none() => {
+                    let password = prompt_user("Set a root password: ");
+                    let salt = generate_salt();
+                    updated_settings.root_password =
+                        hash_password(password.unwrap_or_default(), salt.clone()).ok();
+                }
+                "database name" if updated_settings.db_name.is_none() => {
+                    updated_settings.db_name = prompt_user("Set a database name: ");
+                }
+                "api key" if updated_settings.api_key.is_none() => {
+                    let key = prompt_user("Set an API key: ");
+                    api_key = key.clone().unwrap_or_default();
+                    let salt = generate_salt();
+                    updated_settings.api_key =
+                        hash_password(key.unwrap_or_default(), salt.clone()).ok();
+                }
+                _ => {}
+            }
+        }
+
+        save_settings(&updated_settings, "settings.json");
     }
-
-    if settings.root_password.is_none() {
-        println!("Root password not found in settings.json");
-        let password = prompt_user("What root password do you want: ");
-        let salt = generate_salt();
-        updated_settings.root_password = hash_password(password.unwrap(), salt.clone()).ok();
-        print!("\x1B[2J\x1B[1;1H");
-    }
-
-    if settings.db_name.is_none() {
-        println!("Database file name not found in settings.json");
-        updated_settings.db_name = prompt_user("What database file name do you want: ");
-        print!("\x1B[2J\x1B[1;1H");
-    }
-
-    if settings.api_key.is_none() {
-        println!("API key not found in settings.json");
-        let key = prompt_user("What API key will you use: ");
-        api_key = key.clone().unwrap();
-        let salt = generate_salt();
-        updated_settings.api_key = hash_password(key.unwrap(), salt.clone()).ok();
-        print!("\x1B[2J\x1B[1;1H");
-    }
-
-    save_settings(&updated_settings, "settings.json");
-
     print!("\x1B[2J\x1B[1;1H");
-    
+
     for attempt in (0..3).rev() {
         let entered_password = prompt_user("Enter root password for verification: ");
         match verify_password(
