@@ -1,16 +1,15 @@
 #[macro_use]
 extern crate rocket;
 
-use std::fs::File;
-use std::io::{self, BufRead, Write};
 use tokio::task::block_in_place;
 
-mod routes;
-use routes::*;
 mod database;
-use database::*;
 mod hash;
+mod models;
+mod routes;
 mod settings;
+use routes::*;
+use database::Database;
 use settings::check_settings;
 
 #[launch]

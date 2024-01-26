@@ -1,8 +1,8 @@
-use crate::{database::Database, hash::verify_password, models::*};
 use rocket::serde::json::Json;
 use rocket::State;
 use std::future::Future;
 use surrealdb::{error::Db::Thrown, Error, Error::Db};
+use crate::{database::Database, hash::verify_password, models::*};
 
 async fn verify_api_key<T, F, U>(
     key: String,

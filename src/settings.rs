@@ -1,4 +1,4 @@
-use crate::hash::*;
+use crate::hash::{generate_salt, hash_password, verify_password};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, Write};

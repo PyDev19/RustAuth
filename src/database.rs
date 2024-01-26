@@ -1,10 +1,10 @@
-use crate::hash::*;
-use crate::models::*;
-
 use surrealdb::engine::local::{Db, RocksDb};
 use surrealdb::error::Db::Thrown;
 use surrealdb::opt::{auth::Root, Config};
 use surrealdb::{Error, Surreal};
+
+use crate::models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin};
+use crate::hash::{hash_password, verify_password, generate_salt};
 
 pub struct Database {
     pub client: Surreal<Db>,
