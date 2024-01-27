@@ -3,3 +3,4 @@ Cargo.lock
 database.db
 *.txt
 *.surql
+settings.json
