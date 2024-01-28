@@ -6,9 +6,11 @@ use surrealdb::{
     {Error, Response, Surreal},
 };
 
-use crate::hash::{generate_salt, hash_password, verify_password};
-use crate::models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin};
-use crate::settings::{DatabaseType, Settings};
+use crate::{
+    hash::{generate_salt, hash_password, verify_password},
+    models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin},
+    settings::{DatabaseType, Settings},
+};
 
 pub enum DatabaseClient {
     Db(Surreal<Db>),
@@ -123,7 +125,9 @@ impl Database {
 
         let query = format!(
             "CREATE Users SET email='{}', username='{}', password='{}', logged_in=false",
-            user.email, user.username, password_hash.unwrap()
+            user.email,
+            user.username,
+            password_hash.unwrap()
         );
         let mut result = self.client.query(query).await?;
         Ok(result.take(0)?)
