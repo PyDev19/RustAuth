@@ -8,23 +8,27 @@ mod hash;
 mod models;
 mod routes;
 mod settings;
-use routes::*;
-use database::Database;
-use settings::check_settings;
+use {
+    database::Database,
+    routes::*,
+    settings::{check_settings, Settings},
+};
 
 #[launch]
 async fn rocket() -> _ {
-    let mut api_key = String::from("");
-    let mut root_pass = String::from("");
-    let mut root_user = String::from("");
-    let mut db_name = String::from("");
-
+    let mut db_settings = Settings {
+        root_user: None,
+        database_type: None,
+        database_endpoint: None,
+        api_key: None,
+        root_password: None,
+    };
+    let mut password = Default::default();
     block_in_place(|| {
-        let settings_ = check_settings();
-        (root_user, root_pass, db_name, api_key) = settings_;
+        (db_settings, password) = check_settings();
     });
 
-    let db = Database::new(db_name, root_user, root_pass)
+    let db = Database::new(db_settings.clone(), password)
         .await
         .expect("Error connecting to database");
     rocket::build()
@@ -41,5 +45,5 @@ async fn rocket() -> _ {
             ],
         )
         .manage(db)
-        .manage(api_key)
+        .manage(db_settings.api_key.unwrap())
 }
