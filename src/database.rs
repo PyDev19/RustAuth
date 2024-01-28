@@ -10,7 +10,7 @@ use crate::hash::{generate_salt, hash_password, verify_password};
 use crate::models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin};
 use crate::settings::{DatabaseType, Settings};
 
-enum DatabaseClient {
+pub enum DatabaseClient {
     Db(Surreal<Db>),
     Client(Surreal<Client>),
 }
