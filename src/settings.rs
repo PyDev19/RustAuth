@@ -109,7 +109,7 @@ pub fn check_settings() -> (Settings, String) {
             Ok(result) => {
                 if result {
                     println!("Password verified. Starting Rocket Server...");
-                    return (updated_settings, entered_password);
+                    return (updated_settings, entered_password.unwrap());
                 } else {
                     println!(
                         "Password verification failed. {} attempts remaining.",
