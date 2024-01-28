@@ -1,37 +1,75 @@
-use surrealdb::engine::local::{Db, RocksDb};
-use surrealdb::error::Db::Thrown;
-use surrealdb::opt::{auth::Root, Config};
-use surrealdb::{Error, Surreal};
+use surrealdb::{
+    engine::local::{Db, RocksDb},
+    engine::remote::ws::{Client, Ws},
+    error::Db::Thrown,
+    opt::{auth::Root, Config},
+    {Error, Response, Surreal},
+};
 
+use crate::hash::{generate_salt, hash_password, verify_password};
 use crate::models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin};
-use crate::hash::{hash_password, verify_password, generate_salt};
+use crate::settings::{DatabaseType, Settings};
+
+enum DatabaseClient {
+    Db(Surreal<Db>),
+    Client(Surreal<Client>),
+}
+
+impl DatabaseClient {
+    async fn query(&self, query: String) -> Result<Response, Error> {
+        match self {
+            DatabaseClient::Db(db) => db.query(query).await,
+            DatabaseClient::Client(client) => client.query(query).await,
+        }
+    }
+}
 
 pub struct Database {
-    pub client: Surreal<Db>,
+    pub client: DatabaseClient,
     pub name_space: String,
     pub db_name: String,
 }
 
 impl Database {
-    pub async fn new(db_name: String, root_user: String, root_pass: String) -> Result<Self, Error> {
-        let config = Config::default().strict().user(Root {
-            username: root_user.as_str(),
-            password: root_pass.as_str(),
-        });
-        let client = Surreal::new::<RocksDb>((db_name, config)).await?;
-        client
-            .signin(Root {
-                username: root_user.as_str(),
-                password: root_pass.as_str(),
-            })
-            .await?;
-
-        client.use_ns("my_ns").use_db("my_db").await?;
-        Ok(Database {
-            client,
-            name_space: String::from("my_ns"),
-            db_name: String::from("my_db"),
-        })
+    pub async fn new(db_settings: Settings, root_password: String) -> Result<Self, Error> {
+        match db_settings.clone().database_type.unwrap() {
+            DatabaseType::Local => {
+                let config = Config::default().strict().user(Root {
+                    username: db_settings.root_user.clone().unwrap().as_str(),
+                    password: root_password.as_str(),
+                });
+                let client =
+                    Surreal::new::<RocksDb>((db_settings.database_endpoint.unwrap(), config))
+                        .await?;
+                client
+                    .signin(Root {
+                        username: db_settings.root_user.unwrap().as_str(),
+                        password: root_password.as_str(),
+                    })
+                    .await?;
+                client.use_ns("my_ns").use_db("my_db").await?;
+                Ok(Database {
+                    client: DatabaseClient::Db(client),
+                    name_space: String::from("my_ns"),
+                    db_name: String::from("my_db"),
+                })
+            }
+            DatabaseType::Remote => {
+                let client = Surreal::new::<Ws>(db_settings.database_endpoint.unwrap()).await?;
+                client
+                    .signin(Root {
+                        username: "root",
+                        password: "root",
+                    })
+                    .await?;
+                client.use_ns("my_ns").use_db("my_db").await.unwrap();
+                Ok(Database {
+                    client: DatabaseClient::Client(client),
+                    name_space: String::from("my_ns"),
+                    db_name: String::from("my_db"),
+                })
+            }
+        }
     }
 
     pub async fn check_duplicate_email(&self, email: String) -> Result<bool, Error> {
@@ -83,18 +121,12 @@ impl Database {
         let salt = generate_salt();
         let password_hash = hash_password(user.password.clone(), salt.clone()).ok();
 
-        let user_data: User = User {
-            email: user.email.clone(),
-            username: user.username.clone(),
-            password: password_hash.unwrap(),
-            logged_in: false,
-        };
-
-        let created_user = self.client.create("Users").content(user_data).await;
-        match created_user {
-            Ok(user) => Ok(user.into_iter().next()),
-            Err(err) => Err(err),
-        }
+        let query = format!(
+            "CREATE Users SET email='{}', username='{}', password='{}', logged_in=false",
+            user.email, user.username, password_hash.unwrap()
+        );
+        let mut result = self.client.query(query).await?;
+        Ok(result.take(0)?)
     }
 
     pub async fn email_login(&self, credentials: EmailLogin) -> Result<LoginSuccess, Error> {
