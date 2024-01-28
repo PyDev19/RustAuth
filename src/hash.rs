@@ -1,5 +1,7 @@
-use argon2::password_hash::{rand_core::OsRng, Error, SaltString};
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{
+    password_hash::{rand_core::OsRng, Error, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 
 pub fn generate_salt() -> SaltString {
     SaltString::generate(&mut OsRng)
