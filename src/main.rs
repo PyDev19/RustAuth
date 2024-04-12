@@ -13,7 +13,7 @@ mod settings;
 use {
     database::Database,
     routes::{
-        account_recovery, delete_user, email_login, get_user, root, signout, signup, username_login,
+        delete_user, email_login, get_user, root, signout, signup, username_login,
     },
     settings::{check_json, Settings},
 };
@@ -46,7 +46,6 @@ async fn rocket() -> Rocket<Build> {
                 email_login,
                 username_login,
                 signout,
-                account_recovery
             ],
         )
         .manage(db)
