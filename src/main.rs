@@ -1,7 +1,9 @@
+#![warn(clippy::pedantic)]
+
 #[macro_use]
 extern crate rocket;
 
-use tokio::task::block_in_place;
+use rocket::{tokio::task::block_in_place, Build, Rocket};
 
 mod database;
 mod hash;
@@ -10,12 +12,14 @@ mod routes;
 mod settings;
 use {
     database::Database,
-    routes::*,
-    settings::{check_settings, Settings},
+    routes::{
+        account_recovery, delete_user, email_login, get_user, root, signout, signup, username_login,
+    },
+    settings::{check_json, Settings},
 };
 
 #[launch]
-async fn rocket() -> _ {
+async fn rocket() -> Rocket<Build> {
     let mut db_settings = Settings {
         root_user: None,
         database_type: None,
@@ -23,9 +27,9 @@ async fn rocket() -> _ {
         api_key: None,
         root_password: None,
     };
-    let mut password = Default::default();
+    let mut password = String::default();
     block_in_place(|| {
-        (db_settings, password) = check_settings();
+        (db_settings, password) = check_json();
     });
 
     let db = Database::new(db_settings.clone(), password)
@@ -41,7 +45,8 @@ async fn rocket() -> _ {
                 delete_user,
                 email_login,
                 username_login,
-                signout
+                signout,
+                account_recovery
             ],
         )
         .manage(db)

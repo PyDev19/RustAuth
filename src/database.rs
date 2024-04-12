@@ -1,3 +1,9 @@
+use crate::{
+    hash::{generate_salt, hash_password, verify_password},
+    models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin},
+    settings::{DatabaseType, Settings},
+};
+use rand::Rng;
 use surrealdb::{
     engine::local::{Db, RocksDb},
     engine::remote::ws::{Client, Ws},
@@ -6,28 +12,22 @@ use surrealdb::{
     {Error, Response, Surreal},
 };
 
-use crate::{
-    hash::{generate_salt, hash_password, verify_password},
-    models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin},
-    settings::{DatabaseType, Settings},
-};
-
-pub enum DatabaseClient {
+pub enum DbClient {
     Db(Surreal<Db>),
     Client(Surreal<Client>),
 }
 
-impl DatabaseClient {
+impl DbClient {
     async fn query(&self, query: String) -> Result<Response, Error> {
         match self {
-            DatabaseClient::Db(db) => db.query(query).await,
-            DatabaseClient::Client(client) => client.query(query).await,
+            DbClient::Db(db) => db.query(query).await,
+            DbClient::Client(client) => client.query(query).await,
         }
     }
 }
 
 pub struct Database {
-    pub client: DatabaseClient,
+    pub client: DbClient,
     pub name_space: String,
     pub db_name: String,
 }
@@ -51,7 +51,7 @@ impl Database {
                     .await?;
                 client.use_ns("my_ns").use_db("my_db").await?;
                 Ok(Database {
-                    client: DatabaseClient::Db(client),
+                    client: DbClient::Db(client),
                     name_space: String::from("my_ns"),
                     db_name: String::from("my_db"),
                 })
@@ -66,7 +66,7 @@ impl Database {
                     .await?;
                 client.use_ns("my_ns").use_db("my_db").await.unwrap();
                 Ok(Database {
-                    client: DatabaseClient::Client(client),
+                    client: DbClient::Client(client),
                     name_space: String::from("my_ns"),
                     db_name: String::from("my_db"),
                 })
@@ -75,7 +75,7 @@ impl Database {
     }
 
     pub async fn check_duplicate_email(&self, email: String) -> Result<bool, Error> {
-        let query = format!("SELECT * FROM Users WHERE email = '{}'", email);
+        let query = format!("SELECT * FROM Users WHERE email = '{email}'");
         let result = self.client.query(query).await;
 
         match result {
@@ -88,7 +88,7 @@ impl Database {
     }
 
     pub async fn check_duplicate_username(&self, username: String) -> Result<bool, Error> {
-        let query = format!("SELECT * FROM Users WHERE username = '{}'", username);
+        let query = format!("SELECT * FROM Users WHERE username = '{username}'");
         let result = self.client.query(query).await;
         match result {
             Ok(mut result_set) => {
@@ -130,7 +130,7 @@ impl Database {
             password_hash.unwrap()
         );
         let mut result = self.client.query(query).await?;
-        Ok(result.take(0)?)
+        result.take(0)
     }
 
     pub async fn email_login(&self, credentials: EmailLogin) -> Result<LoginSuccess, Error> {
@@ -149,7 +149,9 @@ impl Database {
                                 .ok()
                                 .unwrap();
                         if verify_password {
-                            if !user.logged_in {
+                            if user.logged_in {
+                                Err(Error::Db(Thrown("User already logged in".to_string())))
+                            } else {
                                 let logged_in_query = format!(
                                     "UPDATE Users SET logged_in = true WHERE email='{}'",
                                     user.email.clone()
@@ -161,8 +163,6 @@ impl Database {
                                     }),
                                     Err(err) => Err(err),
                                 }
-                            } else {
-                                Err(Error::Db(Thrown("User already logged in".to_string())))
                             }
                         } else {
                             Err(Error::Db(Thrown(
@@ -195,7 +195,9 @@ impl Database {
                                 .ok()
                                 .unwrap();
                         if verify_password {
-                            if !user_.logged_in {
+                            if user_.logged_in {
+                                Err(Error::Db(Thrown("User already logged in".to_string())))
+                            } else {
                                 let logged_in_query = format!(
                                     "UPDATE Users SET logged_in = true WHERE email='{}'",
                                     user_.email.clone()
@@ -207,8 +209,6 @@ impl Database {
                                     }),
                                     Err(err) => Err(err),
                                 }
-                            } else {
-                                Err(Error::Db(Thrown("User already logged in".to_string())))
                             }
                         } else {
                             Err(Error::Db(Thrown(
@@ -226,7 +226,7 @@ impl Database {
     }
 
     pub async fn get_user(&self, username: String) -> Result<Option<User>, Error> {
-        let query = format!("SELECT * FROM Users WHERE username = '{}'", username);
+        let query = format!("SELECT * FROM Users WHERE username = '{username}'");
         let mut result = self.client.query(query).await?;
         let created: Option<User> = result.take(0)?;
         Ok(created)
@@ -236,7 +236,7 @@ impl Database {
         let get_user_result = self.get_user(username.clone()).await;
         match get_user_result {
             Ok(Some(_user)) => {
-                let query = format!("DELETE Users WHERE username = '{}'", username);
+                let query = format!("DELETE Users WHERE username = '{username}'");
                 let mut result = self.client.query(query).await?;
                 let deleted_user: Option<User> = result.take(0)?;
                 Ok(deleted_user)
@@ -252,8 +252,7 @@ impl Database {
             Ok(Some(user)) => {
                 if user.logged_in {
                     let query = format!(
-                        "UPDATE Users SET logged_in=false WHERE username = '{}'",
-                        username
+                        "UPDATE Users SET logged_in=false WHERE username = '{username}'"
                     );
                     let mut result = self.client.query(query).await?;
                     let _deleted_user: Option<User> = result.take(0)?;
@@ -264,6 +263,30 @@ impl Database {
             }
             Ok(None) => Err(Error::Db(Thrown("User not found".to_string()))),
             Err(err) => Err(err),
+        }
+    }
+
+    async fn add_code(&self, username: String, code: i32) -> Result<User, Error> {
+        let query = format!("UPDATE Users SET recovery_code={code} WHERE username='{username}'");
+        let mut result = self.client.query(query).await?;
+        let recovery_user: Option<User> = result.take(0)?;
+        Ok(recovery_user.unwrap())
+    }
+
+    pub async fn check_code(&self, username: String) -> Result<User, Error> {
+        let user = self.get_user(username.clone()).await?;
+        match user {
+            Some(user_value) => {
+                if user_value.recovery_code.clone().is_some() {
+                    Err(Error::Db(Thrown(
+                        "Account recovery code already exists on user".to_string(),
+                    )))
+                } else {
+                    let code = rand::thread_rng().gen_range(100_000..1_000_000);
+                    self.add_code(username, code).await
+                }
+            }
+            None => Err(Error::Db(Thrown("User doesn't exists".to_string()))),
         }
     }
 }

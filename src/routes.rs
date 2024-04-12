@@ -1,8 +1,12 @@
+use crate::{
+    database::Database,
+    hash::verify_password,
+    models::{EmailLogin, LoginSuccess, SignUp, User, UsernameLogin},
+};
+use core::future::Future;
 use rocket::serde::json::Json;
 use rocket::State;
-use std::future::Future;
 use surrealdb::{error::Db::Thrown, Error, Error::Db};
-use crate::{database::Database, hash::verify_password, models::*};
 
 async fn verify_api_key<T, F, U>(
     key: String,
@@ -119,15 +123,45 @@ pub async fn signout(
 }
 
 #[post("/username_login", data = "<credentials>")]
-pub async fn username_login(credentials: Json<UsernameLogin>, db: &State<Database>, api_key: &State<String>) -> Result<Json<LoginSuccess>, Json<Error>> {
+pub async fn username_login(
+    credentials: Json<UsernameLogin>,
+    db: &State<Database>,
+    api_key: &State<String>,
+) -> Result<Json<LoginSuccess>, Json<Error>> {
     verify_api_key(credentials.api_key.clone(), api_key, || async {
         let login_result = db.username_login(credentials.into_inner()).await;
         match login_result {
             Ok(login_success) => Ok(Json(login_success)),
             Err(err) => Err(err),
         }
-    }).await
+    })
+    .await
 }
+
+// #[get("/account_recovery/<username>?<key>")]
+// pub async fn account_recovery(
+//     username: String,
+//     key: String,
+//     api_key: &State<String>,
+//     db: &State<Database>,
+// ) -> Result<String, Json<Error>> {
+//     verify_api_key(key, api_key, || async {
+//         match db.check_code(username.clone()).await {
+//             Ok(user) => {
+//                 match send_code_mail(
+//                     user.recovery_code.unwrap().to_string(),
+//                     username,
+//                     user.email,
+//                 ) {
+//                     Ok(_) => Ok("Email with authentication code sent to user's email".to_string()),
+//                     Err(err) => Err(Error::Db(Thrown(err.to_string()))),
+//                 }
+//             }
+//             Err(e) => Err(e),
+//         }
+//     })
+//     .await
+// }
 
 #[get("/")]
 pub fn root() -> &'static str {

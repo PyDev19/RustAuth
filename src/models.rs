@@ -5,7 +5,8 @@ pub struct User {
     pub email: String,
     pub username: String,
     pub password: String,
-    pub logged_in: bool
+    pub logged_in: bool,
+    pub recovery_code: Option<i32>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
